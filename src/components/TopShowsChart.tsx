@@ -60,21 +60,32 @@ export default function TopShowsChart({ data, pageSize = 8 }: TopShowsChartProps
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={pageData}
-            layout="vertical"
-            margin={{ top: 8, right: 16, bottom: 8, left: 180 }}
+            margin={{ top: 8, right: 16, bottom: 80, left: 16 }}
           >
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis type="number" tick={{ fontSize: 12 }} />
-            <YAxis
-              type="category"
+            <XAxis
               dataKey="title"
-              tick={{ fontSize: 12 }}
-              width={180}
-              tickFormatter={(t: string) => (t.length > 40 ? t.slice(0, 39) + "…" : t)}
+              tick={{ fontSize: 11, angle: -45, textAnchor: "end" }}
+              interval={0}
+              height={80}
+              tickFormatter={(t: string) => (t.length > 20 ? t.slice(0, 19) + "…" : t)}
             />
-            <Tooltip />
-            <Bar dataKey="watched" radius={[6, 6, 6, 6]}>
-              <LabelList dataKey="watched" position="right" />
+            <YAxis tick={{ fontSize: 12 }} />
+            <Tooltip
+              cursor={false}
+              content={({ active, payload }) => {
+                if (!active || !payload?.[0]) return null;
+                const { title, watched } = payload[0].payload;
+                return (
+                  <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 shadow-lg">
+                    <p className="font-medium text-sm">{title}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{watched} watches</p>
+                  </div>
+                );
+              }}
+            />
+            <Bar dataKey="watched" fill="#3b82f6" radius={[4, 4, 0, 0]} activeBar={{ fill: "#1d4ed8" }}>
+              <LabelList dataKey="watched" position="top" fontSize={11} />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

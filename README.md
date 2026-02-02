@@ -1,8 +1,6 @@
 # Netflix Viewing Dashboard
 
-A data visualization dashboard that transforms your Netflix viewing history into interactive charts and insights. Built by **Dylan Gomer** as a hands-on project for learning React and data visualization.
-
-![Dashboard Preview](screenshot-placeholder.png)
+A data visualization dashboard that transforms your Netflix viewing history into interactive charts and insights. Built by **Dylan Gomer** as a hands-on project for familiarization with React and data visualization.
 
 ## Features
 

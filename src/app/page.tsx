@@ -2,7 +2,7 @@
 "use client";
 
 // React hooks for state management and memoization
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RawRow, DayPoint, TitlePoint } from "@/types/episode";
 import FileUpload from "@/components/FileUpload";
 import WatchesOverTimeChart from "@/components/WatchesOverTimeChart";
@@ -10,6 +10,32 @@ import TopShowsChart from "@/components/TopShowsChart";
 
 export default function Home() {
   const [rows, setRows] = useState<RawRow[] | null>(null);
+  const [isDark, setIsDark] = useState(false);
+
+  // Load saved theme preference on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved === "dark") {
+      setIsDark(true);
+      document.documentElement.classList.add("dark");
+    } else if (saved === "light") {
+      document.documentElement.classList.add("light");
+    }
+  }, []);
+
+  function toggleDark() {
+    const newIsDark = !isDark;
+    setIsDark(newIsDark);
+    if (newIsDark) {
+      document.documentElement.classList.add("dark");
+      document.documentElement.classList.remove("light");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      document.documentElement.classList.add("light");
+      localStorage.setItem("theme", "light");
+    }
+  }
 
   const { byDay, byTitle } = useMemo(() => {
     // Fallback date for rows with missing date information
@@ -40,11 +66,19 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
       <div className="mx-auto max-w-5xl px-4 py-10 space-y-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-bold">Netflix Viewing Dashboard</h1>
-          <p className="text-sm opacity-80">
-            Upload your <code>ViewingActivity.csv</code>. We process it locally in your browser.
-          </p>
+        <header className="flex items-start justify-between">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold">Netflix Viewing Dashboard</h1>
+            <p className="text-sm opacity-80">
+              Upload your <code>ViewingActivity.csv</code>. We process it locally in your browser.
+            </p>
+          </div>
+          <button
+            onClick={toggleDark}
+            className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
+          >
+            {isDark ? "Light" : "Dark"}
+          </button>
         </header>
 
         <FileUpload onDataLoaded={setRows} />
