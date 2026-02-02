@@ -9,9 +9,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-
-// Define the shape of each data point
-type DayPoint = { day: string; watched: number };
+import { DayPoint } from "@/types/episode";
 
 // Props interface - what data does this component need?
 interface WatchesOverTimeChartProps {

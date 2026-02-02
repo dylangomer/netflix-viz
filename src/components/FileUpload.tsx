@@ -5,13 +5,11 @@ import { RawRow } from "@/types/episode";
 import { identifyShow } from "@/lib/episode-parser";
 import Papa from "papaparse";
 
-// Define the props interface
 interface FileUploadProps {
   onDataLoaded: (data: RawRow[]) => void;
 }
 
 export default function FileUpload({ onDataLoaded }: FileUploadProps) {
-  // Internal state for error messages
   const [error, setError] = useState<string | null>(null);
 
   function handleFile(file: File) {
@@ -21,7 +19,16 @@ export default function FileUpload({ onDataLoaded }: FileUploadProps) {
       skipEmptyLines: true,
       worker: true,
       complete: (result) => {
-        if (result.errors?.length) setError(result.errors[0].message);
+        if (result.errors?.length) {
+          setError(result.errors[0].message);
+          return;
+        }
+
+        if (!result.data || result.data.length === 0) {
+          setError("CSV file is empty or contains no valid data");
+          return;
+        }
+
         const normalized: RawRow[] = result.data.map(r => ({
           Title: identifyShow(r.Title),
           Date: r.Date,
@@ -32,7 +39,6 @@ export default function FileUpload({ onDataLoaded }: FileUploadProps) {
     });
   }
 
-  // Return the JSX
   return (
     <section className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
       <label

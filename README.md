@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Netflix Viewing Dashboard
 
-## Getting Started
+A data visualization dashboard that transforms your Netflix viewing history into interactive charts and insights. Built by **Dylan Gomer** as a hands-on project for learning React and data visualization.
 
-First, run the development server:
+![Dashboard Preview](screenshot-placeholder.png)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Features
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **CSV Upload** - Import your Netflix `ViewingActivity.csv` file
+- **Watches Over Time** - Line chart showing viewing activity by date
+- **Top Titles** - Paginated bar chart of most-watched shows and movies
+- **Privacy-First** - All data processing happens locally in your browser
+- **Dark Mode** - Automatic theme detection based on system preferences
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Category | Technology |
+|----------|------------|
+| Framework | [Next.js 16](https://nextjs.org/) with App Router |
+| UI Library | [React 19](https://react.dev/) |
+| Language | [TypeScript](https://www.typescriptlang.org/) |
+| Styling | [Tailwind CSS 4](https://tailwindcss.com/) |
+| Charts | [Recharts](https://recharts.org/) |
+| CSV Parsing | [PapaParse](https://www.papaparse.com/) |
 
-## Learn More
+## Getting Your Netflix Data
 
-To learn more about Next.js, take a look at the following resources:
+1. Go to [Netflix Account Settings](https://www.netflix.com/account)
+2. Select your profile
+3. Click **Viewing activity**
+4. Click **Download all** at the bottom of the page
+5. Upload the downloaded `ViewingActivity.csv` to this dashboard
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Roadmap
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- [ ] TMDB API integration for richer metadata (genres, actors, posters)
+- [ ] Distinguish between TV shows and movies
+- [ ] Additional chart types and filtering options
+- [ ] Export visualizations as images
 
-## Deploy on Vercel
+## Development
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This project was built as a learning exercise in React data visualization. Development was assisted by modern AI tools (Claude) for code review, refactoring guidance, and best practices.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Author
+
+**Dylan Gomer**
+
+---
+
+Built with Next.js

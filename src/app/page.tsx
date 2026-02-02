@@ -1,27 +1,26 @@
-//Frontend app - no server code here
+// Frontend app - no server code here
 "use client";
 
-//useState - React tool to remember something and re-render when it changes
-//useMemo - React tool to remember a computed value until dependencies change
+// React hooks for state management and memoization
 import { useMemo, useState } from "react";
-import { RawRow } from "@/types/episode";
-import FileUpload from "./FileUpload";
+import { RawRow, DayPoint, TitlePoint } from "@/types/episode";
+import FileUpload from "@/components/FileUpload";
 import WatchesOverTimeChart from "@/components/WatchesOverTimeChart";
 import TopShowsChart from "@/components/TopShowsChart";
-
-type DayPoint = { day: string; watched: number };
-type TitlePoint = { title: string; watched: number };
 
 export default function Home() {
   const [rows, setRows] = useState<RawRow[] | null>(null);
 
   const { byDay, byTitle } = useMemo(() => {
+    // Fallback date for rows with missing date information
+    const DEFAULT_FALLBACK_DATE = "1/1/75";
+
     const dayMap = new Map<string, number>();
     const titleMap = new Map<string, number>();
 
     rows?.forEach((r) => {
       const title = (r["Title"] ?? "").toString();
-      const date = (r["Date"] ?? "1/1/75").toString();
+      const date = (r["Date"] ?? DEFAULT_FALLBACK_DATE).toString();
 
       dayMap.set(date, (dayMap.get(date) ?? 0) + 1);
       titleMap.set(title, (titleMap.get(title) ?? 0) + 1);

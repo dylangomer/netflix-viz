@@ -11,9 +11,7 @@ import {
   CartesianGrid,
   LabelList,
 } from "recharts";
-
-// Define the shape of each data point
-type TitlePoint = { title: string; watched: number };
+import { TitlePoint } from "@/types/episode";
 
 // Props interface - what data does this component need?
 interface TopShowsChartProps {
@@ -25,10 +23,13 @@ export default function TopShowsChart({ data, pageSize = 8 }: TopShowsChartProps
   // Internal state - this component manages its own pagination
   const [page, setPage] = useState(0);
 
+  // Validate and use pageSize (ensure it's positive)
+  const validPageSize = pageSize > 0 ? pageSize : 8;
+
   // Calculate pagination
-  const totalPages = Math.max(1, Math.ceil(data.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(data.length / validPageSize));
   const safePage = Math.min(page, totalPages - 1);
-  const pageData = data.slice(safePage * pageSize, (safePage + 1) * pageSize);
+  const pageData = data.slice(safePage * validPageSize, (safePage + 1) * validPageSize);
 
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
