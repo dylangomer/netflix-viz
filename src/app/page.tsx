@@ -3,14 +3,18 @@
 
 // React hooks for state management and memoization
 import { useEffect, useMemo, useState } from "react";
-import { RawRow, DayPoint, TitlePoint } from "@/types/episode";
+import { RawRow, DayPoint, TitlePoint, EnrichedTitlePoint } from "@/types/episode";
 import FileUpload from "@/components/FileUpload";
 import WatchesOverTimeChart from "@/components/WatchesOverTimeChart";
 import TopShowsChart from "@/components/TopShowsChart";
+import GenreChart from "@/components/GenreChart";
+import { useTMDBEnrichment } from "@/hooks/useTMDBEnrichment";
 
 export default function Home() {
   const [rows, setRows] = useState<RawRow[] | null>(null);
   const [isDark, setIsDark] = useState(false);
+  const [enrichedTitles, setEnrichedTitles] = useState<EnrichedTitlePoint[] | null>(null);
+  const { enrichTitles, isEnriching, progress, total } = useTMDBEnrichment();
 
   // Load saved theme preference on mount
   useEffect(() => {
@@ -84,23 +88,64 @@ export default function Home() {
         <FileUpload onDataLoaded={setRows} />
 
         {rows && (
-          <>
+          <div className="space-y-3">
             <div className="flex items-center justify-between text-sm">
               <p className="opacity-80">Parsed {rows.length.toLocaleString()} rows.</p>
-              <button
-                className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
-                onClick={() => setRows(null)}
-              >
-                Clear data
-              </button>
+              <div className="flex gap-2">
+                {!enrichedTitles && !isEnriching && (
+                  <button
+                    className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
+                    onClick={async () => {
+                      const result = await enrichTitles(byTitle.slice(0, 50)); // Top 50 titles
+                      setEnrichedTitles(result);
+                    }}
+                  >
+                    Enrich with TMDB
+                  </button>
+                )}
+                <button
+                  className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
+                  onClick={() => {
+                    setRows(null);
+                    setEnrichedTitles(null);
+                  }}
+                >
+                  Clear data
+                </button>
+              </div>
             </div>
-          </>
+            {isEnriching && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs opacity-70">
+                  <span>Fetching metadata from TMDB...</span>
+                  <span>{progress} / {total}</span>
+                </div>
+                <div className="h-2 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 transition-all duration-150"
+                    style={{ width: `${total > 0 ? (progress / total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            )}
+            {enrichedTitles && (
+              <p className="text-xs text-green-600 dark:text-green-400">
+                Enriched {enrichedTitles.filter(t => t.tmdbId).length} of {enrichedTitles.length} titles with TMDB data
+              </p>
+            )}
+          </div>
         )}
 
         {rows && (
           <section className="grid gap-6 md:grid-cols-2">
             <WatchesOverTimeChart data={byDay} />
             <TopShowsChart data={byTitle} />
+          </section>
+        )}
+
+        {enrichedTitles && (
+          <section className="grid gap-6 md:grid-cols-2">
+            <GenreChart data={enrichedTitles} />
           </section>
         )}
 

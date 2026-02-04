@@ -1,32 +1,44 @@
-/**
- * Represents a single row from Netflix's ViewingActivity.csv export.
- * Fields are optional because they may be missing in the original CSV data.
- */
+// Single row from Netflix's ViewingActivity.csv export
 export type RawRow = {
-  /** The title of the show/movie/episode */
   Title?: string;
-  /** The date the content was watched (format: "M/D/YY") */
-  Date?: string;
+  Date?: string; // format: "M/D/YY"
 };
 
-/**
- * Aggregated viewing data grouped by date.
- * Used for the "Watches per day" line chart.
- */
+// Aggregated viewing data by date for line chart
 export type DayPoint = {
-  /** Date string (format: "M/D/YY") */
-  day: string;
-  /** Number of items watched on this date */
+  day: string; // format: "M/D/YY"
   watched: number;
 };
 
-/**
- * Aggregated viewing data grouped by show/movie title.
- * Used for the "Top titles" bar chart.
- */
+// Aggregated viewing data by title for bar chart
 export type TitlePoint = {
-  /** Show or movie name (extracted from full title) */
   title: string;
-  /** Total number of times this title was watched */
   watched: number;
+};
+
+// Title enriched with TMDB metadata
+export type EnrichedTitlePoint = TitlePoint & {
+  tmdbId?: number;
+  mediaType?: "movie" | "tv";
+  posterUrl?: string | null;
+  backdropUrl?: string | null;
+  overview?: string;
+  rating?: number; // 0-10
+  releaseYear?: string;
+  genres?: string[];
+};
+
+// Genre distribution data
+export type GenrePoint = {
+  genre: string;
+  watched: number;
+  percentage: number;
+};
+
+// Movie vs TV breakdown
+export type MediaTypePoint = {
+  type: "movie" | "tv";
+  label: string;
+  watched: number;
+  percentage: number;
 };
