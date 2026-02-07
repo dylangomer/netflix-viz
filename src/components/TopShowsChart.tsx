@@ -10,16 +10,19 @@ import {
   Tooltip,
   CartesianGrid,
   LabelList,
+  Cell,
 } from "recharts";
-import { TitlePoint } from "@/types/episode";
+import { EnrichedTitlePoint } from "@/types/episode";
 
-// Props interface - what data does this component need?
 interface TopShowsChartProps {
-  data: TitlePoint[];
-  pageSize?: number; // Optional - defaults to 8
+  data: EnrichedTitlePoint[];
+  genreColorMap: Map<string, string>;
+  pageSize?: number;
 }
 
-export default function TopShowsChart({ data, pageSize = 8 }: TopShowsChartProps) {
+const DEFAULT_COLOR = "#3b82f6"; // fallback blue
+
+export default function TopShowsChart({ data, genreColorMap, pageSize = 8 }: TopShowsChartProps) {
   // Internal state - this component manages its own pagination
   const [page, setPage] = useState(0);
 
@@ -34,7 +37,7 @@ export default function TopShowsChart({ data, pageSize = 8 }: TopShowsChartProps
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-semibold">Top titles (by watches)</h2>
+        <h2 className="text-lg font-semibold">Top Shows (by episodes watched)</h2>
         <div className="flex items-center gap-2">
           <button
             className="rounded border px-2 py-1 text-sm disabled:opacity-50"
@@ -79,12 +82,17 @@ export default function TopShowsChart({ data, pageSize = 8 }: TopShowsChartProps
                 return (
                   <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 shadow-lg">
                     <p className="font-medium text-sm">{title}</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{watched} watches</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{watched} episodes</p>
                   </div>
                 );
               }}
             />
-            <Bar dataKey="watched" fill="#3b82f6" radius={[4, 4, 0, 0]} activeBar={{ fill: "#1d4ed8" }}>
+            <Bar dataKey="watched" radius={[4, 4, 0, 0]}>
+              {pageData.map((entry) => {
+                const primaryGenre = entry.genres?.[0];
+                const color = primaryGenre ? genreColorMap.get(primaryGenre) ?? DEFAULT_COLOR : DEFAULT_COLOR;
+                return <Cell key={entry.title} fill={color} />;
+              })}
               <LabelList dataKey="watched" position="top" fontSize={11} />
             </Bar>
           </BarChart>

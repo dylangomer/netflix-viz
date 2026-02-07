@@ -1,8 +1,20 @@
 // Frontend app - no server code here
 "use client";
 
-// React hooks for state management and memoization
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+
+const GENRE_COLORS = [
+  "#3b82f6", // blue
+  "#ef4444", // red
+  "#22c55e", // green
+  "#f59e0b", // amber
+  "#8b5cf6", // violet
+  "#ec4899", // pink
+  "#14b8a6", // teal
+  "#f97316", // orange
+  "#6366f1", // indigo
+  "#84cc16", // lime
+];
 import { RawRow, DayPoint, TitlePoint, EnrichedTitlePoint } from "@/types/episode";
 import FileUpload from "@/components/FileUpload";
 import WatchesOverTimeChart from "@/components/WatchesOverTimeChart";
@@ -13,7 +25,8 @@ import { useTMDBEnrichment } from "@/hooks/useTMDBEnrichment";
 export default function Home() {
   const [rows, setRows] = useState<RawRow[] | null>(null);
   const [isDark, setIsDark] = useState(false);
-  const [enrichedTitles, setEnrichedTitles] = useState<EnrichedTitlePoint[] | null>(null);
+  const [enrichedMovies, setEnrichedMovies] = useState<EnrichedTitlePoint[]>([]);
+  const [enrichedTVShows, setEnrichedTVShows] = useState<EnrichedTitlePoint[]>([]);
   const { enrichTitles, isEnriching, progress, total } = useTMDBEnrichment();
 
   // Load saved theme preference on mount
@@ -42,16 +55,13 @@ export default function Home() {
   }
 
   const { byDay, byTitle } = useMemo(() => {
-    // Fallback date for rows with missing date information
     const DEFAULT_FALLBACK_DATE = "1/1/75";
-
     const dayMap = new Map<string, number>();
     const titleMap = new Map<string, number>();
 
     rows?.forEach((r) => {
       const title = (r["Title"] ?? "").toString();
       const date = (r["Date"] ?? DEFAULT_FALLBACK_DATE).toString();
-
       dayMap.set(date, (dayMap.get(date) ?? 0) + 1);
       titleMap.set(title, (titleMap.get(title) ?? 0) + 1);
     });
@@ -66,6 +76,56 @@ export default function Home() {
 
     return { byDay, byTitle };
   }, [rows]);
+
+  // Deduplicate and prepare titles for enrichment
+  const deduplicateTitles = useCallback((titles: TitlePoint[]): TitlePoint[] => {
+    const titleMap = new Map<string, number>();
+    titles.forEach(t => {
+      const colonIdx = t.title.indexOf(":");
+      const afterColon = colonIdx > 0 ? t.title.slice(colonIdx + 1).trim().toLowerCase() : "";
+      const looksLikeTV = afterColon.startsWith("season") ||
+                          afterColon.startsWith("series") ||
+                          afterColon.startsWith("episode") ||
+                          afterColon.startsWith("part") ||
+                          afterColon.startsWith("volume");
+      const cleaned = looksLikeTV ? t.title.slice(0, colonIdx).trim() : t.title;
+      titleMap.set(cleaned, (titleMap.get(cleaned) ?? 0) + t.watched);
+    });
+    return Array.from(titleMap.entries()).map(([title, watched]) => ({ title, watched }));
+  }, []);
+
+  // Auto-enrich when data is loaded
+  useEffect(() => {
+    if (byTitle.length === 0 || isEnriching || enrichedMovies.length > 0 || enrichedTVShows.length > 0) return;
+
+    const runEnrichment = async () => {
+      const deduplicated = deduplicateTitles(byTitle);
+      const result = await enrichTitles(deduplicated);
+      setEnrichedMovies(result.filter(t => t.mediaType === "movie"));
+      setEnrichedTVShows(result.filter(t => t.mediaType === "tv" && t.watched >= 5));
+    };
+
+    runEnrichment();
+  }, [byTitle, isEnriching, enrichedMovies.length, enrichedTVShows.length, deduplicateTitles, enrichTitles]);
+
+  const isDataReady = enrichedMovies.length > 0 || enrichedTVShows.length > 0;
+
+  // Build stable genre-to-color mapping from all enriched data
+  const genreColorMap = useMemo(() => {
+    const allData = [...enrichedMovies, ...enrichedTVShows];
+    const genreMap = new Map<string, number>();
+    allData.forEach((title) => {
+      title.genres?.forEach((genre) => {
+        genreMap.set(genre, (genreMap.get(genre) ?? 0) + 1);
+      });
+    });
+    const sorted = Array.from(genreMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10);
+    const colorMap = new Map<string, string>();
+    sorted.forEach(([genre], i) => colorMap.set(genre, GENRE_COLORS[i % GENRE_COLORS.length]));
+    return colorMap;
+  }, [enrichedMovies, enrichedTVShows]);
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
@@ -91,28 +151,16 @@ export default function Home() {
           <div className="space-y-3">
             <div className="flex items-center justify-between text-sm">
               <p className="opacity-80">Parsed {rows.length.toLocaleString()} rows.</p>
-              <div className="flex gap-2">
-                {!enrichedTitles && !isEnriching && (
-                  <button
-                    className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
-                    onClick={async () => {
-                      const result = await enrichTitles(byTitle.slice(0, 50)); // Top 50 titles
-                      setEnrichedTitles(result);
-                    }}
-                  >
-                    Enrich with TMDB
-                  </button>
-                )}
-                <button
-                  className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
-                  onClick={() => {
-                    setRows(null);
-                    setEnrichedTitles(null);
-                  }}
-                >
-                  Clear data
-                </button>
-              </div>
+              <button
+                className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
+                onClick={() => {
+                  setRows(null);
+                  setEnrichedMovies([]);
+                  setEnrichedTVShows([]);
+                }}
+              >
+                Clear data
+              </button>
             </div>
             {isEnriching && (
               <div className="space-y-1">
@@ -128,27 +176,25 @@ export default function Home() {
                 </div>
               </div>
             )}
-            {enrichedTitles && (
+            {isDataReady && (
               <p className="text-xs text-green-600 dark:text-green-400">
-                Enriched {enrichedTitles.filter(t => t.tmdbId).length} of {enrichedTitles.length} titles with TMDB data
+                Enriched {enrichedMovies.length} movies, {enrichedTVShows.length} TV shows
               </p>
             )}
           </div>
         )}
 
-        {rows && (
-          <section className="grid gap-6 md:grid-cols-2">
-            <WatchesOverTimeChart data={byDay} />
-            <TopShowsChart data={byTitle} />
-          </section>
+        {isDataReady && (
+          <>
+            <section className="grid gap-6 md:grid-cols-2">
+              <WatchesOverTimeChart data={byDay} />
+              <TopShowsChart data={enrichedTVShows} genreColorMap={genreColorMap} />
+            </section>
+            <section className="grid gap-6 md:grid-cols-2">
+              <GenreChart data={[...enrichedMovies, ...enrichedTVShows]} genreColorMap={genreColorMap} />
+            </section>
+          </>
         )}
-
-        {enrichedTitles && (
-          <section className="grid gap-6 md:grid-cols-2">
-            <GenreChart data={enrichedTitles} />
-          </section>
-        )}
-
 
         <footer className="text-xs opacity-70">
           Tip: Get your CSV from Netflix → Account → Profiles → Your Profile → Viewing activity → Download all.

@@ -19,6 +19,43 @@ interface EnrichmentState {
   error: string | null;
 }
 
+const BATCH_SIZE = 5; // Concurrent requests (TMDB allows ~40/10s)
+
+async function fetchTMDB(title: TitlePoint, cache: Map<string, EnrichedTitlePoint>): Promise<EnrichedTitlePoint> {
+  const cleanedTitle = cleanTitleForSearch(title.title);
+
+  if (!cleanedTitle) return title;
+  if (cache.has(cleanedTitle)) return { ...title, ...cache.get(cleanedTitle) };
+
+  try {
+    const response = await fetch(`/api/tmdb/search?query=${encodeURIComponent(cleanedTitle)}`);
+    if (!response.ok) return title;
+
+    const data: TMDBSearchResponse = await response.json();
+    if (!data.results?.length) return title;
+
+    const match = data.results[0];
+    const isMovie = match.media_type === "movie";
+
+    const enriched: EnrichedTitlePoint = {
+      ...title,
+      tmdbId: match.id,
+      mediaType: match.media_type,
+      posterUrl: getPosterUrl(match.poster_path),
+      backdropUrl: getBackdropUrl(match.backdrop_path),
+      overview: match.overview,
+      rating: match.vote_average,
+      releaseYear: extractYear(isMovie ? match.release_date : match.first_air_date),
+      genres: getGenreNames(match.genre_ids, match.media_type),
+    };
+
+    cache.set(cleanedTitle, enriched);
+    return enriched;
+  } catch {
+    return title;
+  }
+}
+
 export function useTMDBEnrichment() {
   const [state, setState] = useState<EnrichmentState>({
     enrichedTitles: new Map(),
@@ -37,77 +74,15 @@ export function useTMDBEnrichment() {
       error: null,
     }));
 
-    const enriched: EnrichedTitlePoint[] = [];
     const cache = new Map(state.enrichedTitles);
+    const results: EnrichedTitlePoint[] = [];
 
-    for (let i = 0; i < titles.length; i++) {
-      const title = titles[i];
-      const cleanedTitle = cleanTitleForSearch(title.title);
-
-      // Skip empty titles
-      if (!cleanedTitle) {
-        enriched.push(title);
-        setState((s) => ({ ...s, progress: i + 1 }));
-        continue;
-      }
-
-      // Check cache first
-      if (cache.has(cleanedTitle)) {
-        enriched.push({
-          ...title,
-          ...cache.get(cleanedTitle),
-        });
-        setState((s) => ({ ...s, progress: i + 1 }));
-        continue;
-      }
-
-      try {
-        const response = await fetch(
-          `/api/tmdb/search?query=${encodeURIComponent(cleanedTitle)}`
-        );
-
-        if (!response.ok) {
-          // If API fails, just use the original title data
-          enriched.push(title);
-          continue;
-        }
-
-        const data: TMDBSearchResponse = await response.json();
-
-        if (data.results && data.results.length > 0) {
-          const match = data.results[0];
-          const isMovie = match.media_type === "movie";
-
-          const enrichedTitle: EnrichedTitlePoint = {
-            ...title,
-            tmdbId: match.id,
-            mediaType: match.media_type,
-            posterUrl: getPosterUrl(match.poster_path),
-            backdropUrl: getBackdropUrl(match.backdrop_path),
-            overview: match.overview,
-            rating: match.vote_average,
-            releaseYear: extractYear(
-              isMovie ? match.release_date : match.first_air_date
-            ),
-            genres: getGenreNames(match.genre_ids, match.media_type),
-          };
-
-          cache.set(cleanedTitle, enrichedTitle);
-          enriched.push(enrichedTitle);
-        } else {
-          enriched.push(title);
-        }
-      } catch (error) {
-        console.error(`Failed to enrich "${title.title}":`, error);
-        enriched.push(title);
-      }
-
-      setState((s) => ({ ...s, progress: i + 1 }));
-
-      // Small delay to avoid rate limiting
-      if (i < titles.length - 1) {
-        await new Promise((r) => setTimeout(r, 100));
-      }
+    // Process in batches
+    for (let i = 0; i < titles.length; i += BATCH_SIZE) {
+      const batch = titles.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map((t) => fetchTMDB(t, cache)));
+      results.push(...batchResults);
+      setState((s) => ({ ...s, progress: Math.min(i + BATCH_SIZE, titles.length) }));
     }
 
     setState((s) => ({
@@ -116,7 +91,7 @@ export function useTMDBEnrichment() {
       isEnriching: false,
     }));
 
-    return enriched;
+    return results;
   }, [state.enrichedTitles]);
 
   const clearCache = useCallback(() => {

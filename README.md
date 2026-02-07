@@ -5,10 +5,12 @@ A data visualization dashboard that transforms your Netflix viewing history into
 ## Features
 
 - **CSV Upload** - Import your Netflix `ViewingActivity.csv` file
-- **Watches Over Time** - Line chart showing viewing activity by date
+- **Watches Over Time** - Line chart with day/week/month aggregation
 - **Top Titles** - Paginated bar chart of most-watched shows and movies
+- **Genre Distribution** - Donut chart showing your viewing preferences by genre
+- **TMDB Integration** - Enriches titles with metadata (genres, ratings, posters)
 - **Privacy-First** - All data processing happens locally in your browser
-- **Dark Mode** - Automatic theme detection based on system preferences
+- **Dark Mode** - Toggle between light and dark themes
 
 ## Tech Stack
 
@@ -31,7 +33,7 @@ A data visualization dashboard that transforms your Netflix viewing history into
 
 ## Roadmap
 
-- [ ] TMDB API integration for richer metadata (genres, actors, posters)
+- [x] TMDB API integration for richer metadata (genres, ratings)
 - [ ] Distinguish between TV shows and movies
 - [ ] Additional chart types and filtering options
 - [ ] Export visualizations as images

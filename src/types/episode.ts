@@ -27,18 +27,3 @@ export type EnrichedTitlePoint = TitlePoint & {
   releaseYear?: string;
   genres?: string[];
 };
-
-// Genre distribution data
-export type GenrePoint = {
-  genre: string;
-  watched: number;
-  percentage: number;
-};
-
-// Movie vs TV breakdown
-export type MediaTypePoint = {
-  type: "movie" | "tv";
-  label: string;
-  watched: number;
-  percentage: number;
-};

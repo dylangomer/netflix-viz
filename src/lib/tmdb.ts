@@ -27,19 +27,6 @@ export interface TMDBGenre {
   name: string;
 }
 
-export interface EnrichedTitle {
-  netflixTitle: string;
-  tmdbId: number;
-  mediaType: "movie" | "tv";
-  displayTitle: string;
-  posterUrl: string | null;
-  backdropUrl: string | null;
-  overview: string;
-  rating: number;
-  releaseYear: string;
-  genres: string[];
-}
-
 // Genre ID to name mappings from TMDB
 export const MOVIE_GENRES: Record<number, string> = {
   28: "Action",
@@ -93,9 +80,23 @@ export function getBackdropUrl(path: string | null, size: "w300" | "w780" | "w12
   return `https://image.tmdb.org/t/p/${size}${path}`;
 }
 
+// Normalize TV compound genres to match movie genre names
+const TV_GENRE_NORMALIZATION: Record<string, string[]> = {
+  "Action & Adventure": ["Action", "Adventure"],
+  "Sci-Fi & Fantasy": ["Science Fiction", "Fantasy"],
+  "War & Politics": ["War"],
+};
+
 export function getGenreNames(genreIds: number[], mediaType: "movie" | "tv"): string[] {
   const genreMap = mediaType === "movie" ? MOVIE_GENRES : TV_GENRES;
-  return genreIds.map((id) => genreMap[id]).filter(Boolean);
+  const rawGenres = genreIds.map((id) => genreMap[id]).filter(Boolean);
+
+  if (mediaType === "tv") {
+    // Expand compound TV genres to normalized names
+    return rawGenres.flatMap((genre) => TV_GENRE_NORMALIZATION[genre] ?? [genre]);
+  }
+
+  return rawGenres;
 }
 
 export function extractYear(dateString: string | undefined): string {
@@ -110,24 +111,4 @@ export function cleanTitleForSearch(netflixTitle: string): string {
     return netflixTitle.substring(0, colonIndex).trim();
   }
   return netflixTitle.trim();
-}
-
-export function transformToEnrichedTitle(
-  netflixTitle: string,
-  result: TMDBSearchResult
-): EnrichedTitle {
-  const isMovie = result.media_type === "movie";
-
-  return {
-    netflixTitle,
-    tmdbId: result.id,
-    mediaType: result.media_type,
-    displayTitle: isMovie ? result.title! : result.name!,
-    posterUrl: getPosterUrl(result.poster_path),
-    backdropUrl: getBackdropUrl(result.backdrop_path),
-    overview: result.overview,
-    rating: result.vote_average,
-    releaseYear: extractYear(isMovie ? result.release_date : result.first_air_date),
-    genres: getGenreNames(result.genre_ids, result.media_type),
-  };
 }
