@@ -10,8 +10,8 @@ import {
   Legend,
 } from "recharts";
 import { EnrichedTitlePoint } from "@/types/episode";
-
-const DEFAULT_COLOR = "#3b82f6"; // fallback blue
+import { COLORS, TOP_GENRES_LIMIT } from "@/lib/constants";
+import { Card } from "./Card";
 
 interface GenreChartProps {
   data: EnrichedTitlePoint[];
@@ -64,22 +64,22 @@ export default function GenreChart({ data, genreColorMap }: GenreChartProps) {
         percentage: Math.round(((movies + shows) / total) * 100),
       }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+      .slice(0, TOP_GENRES_LIMIT);
 
     return sorted;
   }, [data, mode]);
 
   if (genreData.length === 0) {
     return (
-      <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+      <Card>
         <h2 className="text-lg font-semibold mb-3">Genre Distribution</h2>
         <p className="text-sm opacity-70">No genre data available</p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">Genre Distribution</h2>
         <div className="flex gap-1">
@@ -111,7 +111,7 @@ export default function GenreChart({ data, genreColorMap }: GenreChartProps) {
               innerRadius={40}
             >
               {genreData.map((entry) => (
-                <Cell key={entry.genre} fill={genreColorMap.get(entry.genre) ?? DEFAULT_COLOR} />
+                <Cell key={entry.genre} fill={genreColorMap.get(entry.genre) ?? COLORS.primary} />
               ))}
             </Pie>
             <Tooltip
@@ -136,6 +136,6 @@ export default function GenreChart({ data, genreColorMap }: GenreChartProps) {
           </PieChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </Card>
   );
 }

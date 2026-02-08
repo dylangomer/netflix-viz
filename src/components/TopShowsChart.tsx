@@ -13,6 +13,8 @@ import {
   Cell,
 } from "recharts";
 import { EnrichedTitlePoint } from "@/types/episode";
+import { COLORS, SHOWS_PER_PAGE } from "@/lib/constants";
+import { Card } from "./Card";
 
 interface TopShowsChartProps {
   data: EnrichedTitlePoint[];
@@ -20,14 +22,12 @@ interface TopShowsChartProps {
   pageSize?: number;
 }
 
-const DEFAULT_COLOR = "#3b82f6"; // fallback blue
-
-export default function TopShowsChart({ data, genreColorMap, pageSize = 8 }: TopShowsChartProps) {
+export default function TopShowsChart({ data, genreColorMap, pageSize = SHOWS_PER_PAGE }: TopShowsChartProps) {
   // Internal state - this component manages its own pagination
   const [page, setPage] = useState(0);
 
   // Validate and use pageSize (ensure it's positive)
-  const validPageSize = pageSize > 0 ? pageSize : 8;
+  const validPageSize = pageSize > 0 ? pageSize : SHOWS_PER_PAGE;
 
   // Calculate pagination
   const totalPages = Math.max(1, Math.ceil(data.length / validPageSize));
@@ -35,7 +35,7 @@ export default function TopShowsChart({ data, genreColorMap, pageSize = 8 }: Top
   const pageData = data.slice(safePage * validPageSize, (safePage + 1) * validPageSize);
 
   return (
-    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">Top Shows (by episodes watched)</h2>
         <div className="flex items-center gap-2">
@@ -90,7 +90,7 @@ export default function TopShowsChart({ data, genreColorMap, pageSize = 8 }: Top
             <Bar dataKey="watched" radius={[4, 4, 0, 0]}>
               {pageData.map((entry) => {
                 const primaryGenre = entry.genres?.[0];
-                const color = primaryGenre ? genreColorMap.get(primaryGenre) ?? DEFAULT_COLOR : DEFAULT_COLOR;
+                const color = primaryGenre ? genreColorMap.get(primaryGenre) ?? COLORS.primary : COLORS.primary;
                 return <Cell key={entry.title} fill={color} />;
               })}
               <LabelList dataKey="watched" position="top" fontSize={11} />
@@ -98,6 +98,6 @@ export default function TopShowsChart({ data, genreColorMap, pageSize = 8 }: Top
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </Card>
   );
 }

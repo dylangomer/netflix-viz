@@ -103,12 +103,3 @@ export function extractYear(dateString: string | undefined): string {
   if (!dateString) return "Unknown";
   return dateString.split("-")[0];
 }
-
-// Netflix titles look like "Show: Season 1: Episode Title" - extract just the show name
-export function cleanTitleForSearch(netflixTitle: string): string {
-  const colonIndex = netflixTitle.indexOf(":");
-  if (colonIndex > 0) {
-    return netflixTitle.substring(0, colonIndex).trim();
-  }
-  return netflixTitle.trim();
-}

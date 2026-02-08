@@ -2,20 +2,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-
-const GENRE_COLORS = [
-  "#3b82f6", // blue
-  "#ef4444", // red
-  "#22c55e", // green
-  "#f59e0b", // amber
-  "#8b5cf6", // violet
-  "#ec4899", // pink
-  "#14b8a6", // teal
-  "#f97316", // orange
-  "#6366f1", // indigo
-  "#84cc16", // lime
-];
 import { RawRow, DayPoint, TitlePoint, EnrichedTitlePoint } from "@/types/episode";
+import { COLORS, TOP_GENRES_LIMIT, MIN_EPISODES_FOR_TV } from "@/lib/constants";
+import { cleanTitle } from "@/lib/episode-parser";
 import FileUpload from "@/components/FileUpload";
 import WatchesOverTimeChart from "@/components/WatchesOverTimeChart";
 import TopShowsChart from "@/components/TopShowsChart";
@@ -27,7 +16,7 @@ export default function Home() {
   const [isDark, setIsDark] = useState(false);
   const [enrichedMovies, setEnrichedMovies] = useState<EnrichedTitlePoint[]>([]);
   const [enrichedTVShows, setEnrichedTVShows] = useState<EnrichedTitlePoint[]>([]);
-  const { enrichTitles, isEnriching, progress, total } = useTMDBEnrichment();
+  const { enrichTitles, isEnriching, progress, total, failedCount } = useTMDBEnrichment();
 
   // Load saved theme preference on mount
   useEffect(() => {
@@ -81,14 +70,8 @@ export default function Home() {
   const deduplicateTitles = useCallback((titles: TitlePoint[]): TitlePoint[] => {
     const titleMap = new Map<string, number>();
     titles.forEach(t => {
-      const colonIdx = t.title.indexOf(":");
-      const afterColon = colonIdx > 0 ? t.title.slice(colonIdx + 1).trim().toLowerCase() : "";
-      const looksLikeTV = afterColon.startsWith("season") ||
-                          afterColon.startsWith("series") ||
-                          afterColon.startsWith("episode") ||
-                          afterColon.startsWith("part") ||
-                          afterColon.startsWith("volume");
-      const cleaned = looksLikeTV ? t.title.slice(0, colonIdx).trim() : t.title;
+      const cleaned = cleanTitle(t.title);
+      if (!cleaned) return; // Skip empty titles
       titleMap.set(cleaned, (titleMap.get(cleaned) ?? 0) + t.watched);
     });
     return Array.from(titleMap.entries()).map(([title, watched]) => ({ title, watched }));
@@ -102,7 +85,7 @@ export default function Home() {
       const deduplicated = deduplicateTitles(byTitle);
       const result = await enrichTitles(deduplicated);
       setEnrichedMovies(result.filter(t => t.mediaType === "movie"));
-      setEnrichedTVShows(result.filter(t => t.mediaType === "tv" && t.watched >= 5));
+      setEnrichedTVShows(result.filter(t => t.mediaType === "tv" && t.watched >= MIN_EPISODES_FOR_TV));
     };
 
     runEnrichment();
@@ -121,9 +104,9 @@ export default function Home() {
     });
     const sorted = Array.from(genreMap.entries())
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10);
+      .slice(0, TOP_GENRES_LIMIT);
     const colorMap = new Map<string, string>();
-    sorted.forEach(([genre], i) => colorMap.set(genre, GENRE_COLORS[i % GENRE_COLORS.length]));
+    sorted.forEach(([genre], i) => colorMap.set(genre, COLORS.palette[i % COLORS.palette.length]));
     return colorMap;
   }, [enrichedMovies, enrichedTVShows]);
 
@@ -177,8 +160,9 @@ export default function Home() {
               </div>
             )}
             {isDataReady && (
-              <p className="text-xs text-green-600 dark:text-green-400">
+              <p className={`text-xs ${failedCount > 0 ? "text-yellow-600 dark:text-yellow-400" : "text-green-600 dark:text-green-400"}`}>
                 Enriched {enrichedMovies.length} movies, {enrichedTVShows.length} TV shows
+                {failedCount > 0 && ` (${failedCount} titles not found)`}
               </p>
             )}
           </div>

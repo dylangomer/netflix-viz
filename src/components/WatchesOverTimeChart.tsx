@@ -11,6 +11,8 @@ import {
   CartesianGrid,
 } from "recharts";
 import { DayPoint } from "@/types/episode";
+import { TWO_YEARS_IN_DAYS, SIX_MONTHS_IN_DAYS, COLORS } from "@/lib/constants";
+import { Card } from "./Card";
 
 interface WatchesOverTimeChartProps {
   data: DayPoint[];
@@ -18,11 +20,26 @@ interface WatchesOverTimeChartProps {
 
 type AggregationMode = "day" | "week" | "month";
 
+function getDefaultMode(data: DayPoint[]): AggregationMode {
+  if (data.length < 2) return "day";
+
+  const dates = data.map((d) => new Date(d.day).getTime());
+  const earliest = Math.min(...dates);
+  const latest = Math.max(...dates);
+  const rangeInDays = (latest - earliest) / (1000 * 60 * 60 * 24);
+
+  if (rangeInDays >= TWO_YEARS_IN_DAYS) return "month";
+  if (rangeInDays >= SIX_MONTHS_IN_DAYS) return "week";
+  return "day";
+}
+
 export default function WatchesOverTimeChart({ data }: WatchesOverTimeChartProps) {
-  const [mode, setMode] = useState<AggregationMode>("day");
+  const defaultMode = useMemo(() => getDefaultMode(data), [data]);
+  const [mode, setMode] = useState<AggregationMode | null>(null);
+  const activeMode = mode ?? defaultMode;
 
   const chartData = useMemo(() => {
-    if (mode === "day") return data;
+    if (activeMode === "day") return data;
 
     const grouped = new Map<string, number>();
 
@@ -30,7 +47,7 @@ export default function WatchesOverTimeChart({ data }: WatchesOverTimeChartProps
       const date = new Date(day);
       let key: string;
 
-      if (mode === "week") {
+      if (activeMode === "week") {
         // Get start of week (Sunday)
         const startOfWeek = new Date(date);
         startOfWeek.setDate(date.getDate() - date.getDay());
@@ -46,13 +63,10 @@ export default function WatchesOverTimeChart({ data }: WatchesOverTimeChartProps
     return Array.from(grouped.entries())
       .map(([day, watched]) => ({ day, watched }))
       .sort((a, b) => (a.day < b.day ? -1 : 1));
-  }, [data, mode]);
-
-  // Auto-select aggregation for large datasets
-  const recommendedMode = data.length > 90 ? "week" : data.length > 365 ? "month" : "day";
+  }, [data, activeMode]);
 
   return (
-    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 p-4">
+    <Card>
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-lg font-semibold">Watches over time</h2>
         <div className="flex gap-1 text-sm">
@@ -61,7 +75,7 @@ export default function WatchesOverTimeChart({ data }: WatchesOverTimeChartProps
               key={m}
               onClick={() => setMode(m)}
               className={`px-2 py-1 rounded ${
-                mode === m
+                activeMode === m
                   ? "bg-blue-500 text-white"
                   : "border hover:bg-gray-100 dark:hover:bg-gray-900"
               }`}
@@ -87,12 +101,12 @@ export default function WatchesOverTimeChart({ data }: WatchesOverTimeChartProps
                 const { day, watched } = payload[0].payload;
 
                 let dateLabel = day;
-                if (mode === "week") {
+                if (activeMode === "week") {
                   const start = new Date(day);
                   const end = new Date(start);
                   end.setDate(start.getDate() + 6);
                   dateLabel = `${start.getMonth() + 1}/${start.getDate()} - ${end.getMonth() + 1}/${end.getDate()}/${String(end.getFullYear()).slice(-2)}`;
-                } else if (mode === "month") {
+                } else if (activeMode === "month") {
                   const [month, year] = day.split("/");
                   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                   dateLabel = `${monthNames[parseInt(month) - 1]} 20${year}`;
@@ -106,10 +120,10 @@ export default function WatchesOverTimeChart({ data }: WatchesOverTimeChartProps
                 );
               }}
             />
-            <Line type="monotone" dataKey="watched" stroke="#3b82f6" dot={chartData.length < 50} />
+            <Line type="monotone" dataKey="watched" stroke={COLORS.primary} dot={chartData.length < 50} />
           </LineChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </Card>
   );
 }

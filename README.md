@@ -34,8 +34,8 @@ A data visualization dashboard that transforms your Netflix viewing history into
 ## Roadmap
 
 - [x] TMDB API integration for richer metadata (genres, ratings)
-- [ ] Distinguish between TV shows and movies
-- [ ] Additional chart types and filtering options
+- [x] Distinguish between TV shows and movies
+- [x] Additional chart types and filtering options
 - [ ] Export visualizations as images
 
 ## Development

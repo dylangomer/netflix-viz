@@ -4,35 +4,49 @@ import { useState, useCallback } from "react";
 import { TitlePoint, EnrichedTitlePoint } from "@/types/episode";
 import {
   TMDBSearchResponse,
-  cleanTitleForSearch,
   getPosterUrl,
   getBackdropUrl,
   getGenreNames,
   extractYear,
 } from "@/lib/tmdb";
+import { cleanTitle } from "@/lib/episode-parser";
 
 interface EnrichmentState {
   enrichedTitles: Map<string, EnrichedTitlePoint>;
   isEnriching: boolean;
   progress: number;
   total: number;
-  error: string | null;
+  failedCount: number;
 }
 
 const BATCH_SIZE = 5; // Concurrent requests (TMDB allows ~40/10s)
 
-async function fetchTMDB(title: TitlePoint, cache: Map<string, EnrichedTitlePoint>): Promise<EnrichedTitlePoint> {
-  const cleanedTitle = cleanTitleForSearch(title.title);
+interface FetchResult {
+  data: EnrichedTitlePoint;
+  success: boolean;
+}
 
-  if (!cleanedTitle) return title;
-  if (cache.has(cleanedTitle)) return { ...title, ...cache.get(cleanedTitle) };
+async function fetchTMDB(title: TitlePoint, cache: Map<string, EnrichedTitlePoint>): Promise<FetchResult> {
+  const cleanedTitle = cleanTitle(title.title);
+
+  if (!cleanedTitle) {
+    console.warn(`[TMDB] Empty title after cleaning: "${title.title}"`);
+    return { data: title, success: false };
+  }
+  if (cache.has(cleanedTitle)) return { data: { ...title, ...cache.get(cleanedTitle) }, success: true };
 
   try {
     const response = await fetch(`/api/tmdb/search?query=${encodeURIComponent(cleanedTitle)}`);
-    if (!response.ok) return title;
+    if (!response.ok) {
+      console.warn(`[TMDB] API error for "${cleanedTitle}": ${response.status}`);
+      return { data: title, success: false };
+    }
 
     const data: TMDBSearchResponse = await response.json();
-    if (!data.results?.length) return title;
+    if (!data.results?.length) {
+      console.warn(`[TMDB] No results for "${cleanedTitle}"`);
+      return { data: title, success: false };
+    }
 
     const match = data.results[0];
     const isMovie = match.media_type === "movie";
@@ -50,9 +64,10 @@ async function fetchTMDB(title: TitlePoint, cache: Map<string, EnrichedTitlePoin
     };
 
     cache.set(cleanedTitle, enriched);
-    return enriched;
-  } catch {
-    return title;
+    return { data: enriched, success: true };
+  } catch (err) {
+    console.warn(`[TMDB] Fetch error for "${cleanedTitle}":`, err);
+    return { data: title, success: false };
   }
 }
 
@@ -62,7 +77,7 @@ export function useTMDBEnrichment() {
     isEnriching: false,
     progress: 0,
     total: 0,
-    error: null,
+    failedCount: 0,
   });
 
   const enrichTitles = useCallback(async (titles: TitlePoint[]): Promise<EnrichedTitlePoint[]> => {
@@ -71,17 +86,24 @@ export function useTMDBEnrichment() {
       isEnriching: true,
       progress: 0,
       total: titles.length,
-      error: null,
+      failedCount: 0,
     }));
 
     const cache = new Map(state.enrichedTitles);
     const results: EnrichedTitlePoint[] = [];
+    let failed = 0;
 
     // Process in batches
     for (let i = 0; i < titles.length; i += BATCH_SIZE) {
       const batch = titles.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.all(batch.map((t) => fetchTMDB(t, cache)));
-      results.push(...batchResults);
+      batchResults.forEach((r) => {
+        results.push(r.data);
+        if (!r.success) {
+          failed++;
+          console.log(`[TMDB] Counted as failed: "${r.data.title}"`);
+        }
+      });
       setState((s) => ({ ...s, progress: Math.min(i + BATCH_SIZE, titles.length) }));
     }
 
@@ -89,7 +111,12 @@ export function useTMDBEnrichment() {
       ...s,
       enrichedTitles: cache,
       isEnriching: false,
+      failedCount: failed,
     }));
+
+    if (failed > 0) {
+      console.log(`[TMDB] Enrichment complete: ${results.length - failed} succeeded, ${failed} failed`);
+    }
 
     return results;
   }, [state.enrichedTitles]);
@@ -100,7 +127,7 @@ export function useTMDBEnrichment() {
       isEnriching: false,
       progress: 0,
       total: 0,
-      error: null,
+      failedCount: 0,
     });
   }, []);
 
@@ -110,6 +137,6 @@ export function useTMDBEnrichment() {
     isEnriching: state.isEnriching,
     progress: state.progress,
     total: state.total,
-    error: state.error,
+    failedCount: state.failedCount,
   };
 }
