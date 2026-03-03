@@ -62,7 +62,16 @@ export default function WatchesOverTimeChart({ data }: WatchesOverTimeChartProps
 
     return Array.from(grouped.entries())
       .map(([day, watched]) => ({ day, watched }))
-      .sort((a, b) => (a.day < b.day ? -1 : 1));
+      .sort((a, b) => {
+        // Week keys are M/D/YY, month keys are M/YY
+        const toDate = (k: string) => {
+          const parts = k.split("/");
+          return parts.length === 3
+            ? new Date(k).getTime()
+            : new Date(`${parts[0]}/1/${parts[1]}`).getTime();
+        };
+        return toDate(a.day) - toDate(b.day);
+      });
   }, [data, activeMode]);
 
   return (

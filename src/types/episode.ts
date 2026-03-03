@@ -10,10 +10,11 @@ export type DayPoint = {
   watched: number;
 };
 
-// Aggregated viewing data by title for bar chart
+// Aggregated viewing data by title
 export type TitlePoint = {
   title: string;
   watched: number;
+  knownTV?: boolean; // true if raw Netflix title had episode/season markers
 };
 
 // Title enriched with TMDB metadata
@@ -22,8 +23,46 @@ export type EnrichedTitlePoint = TitlePoint & {
   mediaType?: "movie" | "tv";
   posterUrl?: string | null;
   backdropUrl?: string | null;
-  overview?: string;
   rating?: number; // 0-10
-  releaseYear?: string;
   genres?: string[];
+};
+
+// --- Wrapped experience types ---
+
+export type AvatarArchetype =
+  | "Binge Machine"
+  | "Cinephile"
+  | "Genre Loyalist"
+  | "Explorer"
+  | "Casual Viewer";
+
+export type ViewerAvatar = {
+  archetype: AvatarArchetype;
+  emoji: string;
+  tagline: string;
+  highlights: string[];
+};
+
+export type WrappedInsights = {
+  totalWatches: number;
+  totalTVEpisodes: number;
+  totalMovies: number;
+  dateRange: { start: string; end: string };
+  topTVShow: EnrichedTitlePoint | null;
+  topMovie: EnrichedTitlePoint | null;
+  favoriteGenre: string | null;
+  favoriteGenrePercent: number;
+  genreBreakdown: { genre: string; count: number; percent: number }[];
+  uniqueTitles: number;
+};
+
+export type SlideConfig = {
+  id: string;
+  component: React.ComponentType<SlideProps>;
+  shouldShow: (insights: WrappedInsights) => boolean;
+};
+
+export type SlideProps = {
+  insights: WrappedInsights;
+  avatar: ViewerAvatar;
 };

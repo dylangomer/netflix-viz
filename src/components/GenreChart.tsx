@@ -26,6 +26,7 @@ interface GenreData {
   movies: number;
   shows: number;
   percentage: number;
+  [key: string]: unknown;
 }
 
 

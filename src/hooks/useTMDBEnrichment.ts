@@ -1,29 +1,53 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { TitlePoint, EnrichedTitlePoint } from "@/types/episode";
 import {
   TMDBSearchResponse,
+  TMDBSearchResult,
   getPosterUrl,
   getBackdropUrl,
   getGenreNames,
-  extractYear,
 } from "@/lib/tmdb";
 import { cleanTitle } from "@/lib/episode-parser";
 
 interface EnrichmentState {
-  enrichedTitles: Map<string, EnrichedTitlePoint>;
   isEnriching: boolean;
   progress: number;
   total: number;
   failedCount: number;
 }
 
-const BATCH_SIZE = 5; // Concurrent requests (TMDB allows ~40/10s)
+const BATCH_SIZE = 5; // Concurrent requests (TMDB allows ~40/s)
 
 interface FetchResult {
   data: EnrichedTitlePoint;
   success: boolean;
+}
+
+/** Single TMDB search call. Returns null on network/API error. */
+async function queryTMDB(query: string): Promise<TMDBSearchResponse | null> {
+  const resp = await fetch(`/api/tmdb/search?query=${encodeURIComponent(query)}`);
+  return resp.ok ? resp.json() : null;
+}
+
+/**
+ * Progressively strip colon segments and search until `predicate` matches a result.
+ * Returns the matching result or null.
+ */
+async function searchWithColonFallback(
+  query: string,
+  predicate: (r: TMDBSearchResult) => boolean,
+): Promise<TMDBSearchResult | null> {
+  let shorter = query;
+  while (shorter.includes(":")) {
+    shorter = shorter.slice(0, shorter.lastIndexOf(":")).trim();
+    if (!shorter) break;
+    const data = await queryTMDB(shorter);
+    const match = data?.results?.find(predicate);
+    if (match) return match;
+  }
+  return null;
 }
 
 async function fetchTMDB(title: TitlePoint, cache: Map<string, EnrichedTitlePoint>): Promise<FetchResult> {
@@ -36,20 +60,30 @@ async function fetchTMDB(title: TitlePoint, cache: Map<string, EnrichedTitlePoin
   if (cache.has(cleanedTitle)) return { data: { ...title, ...cache.get(cleanedTitle) }, success: true };
 
   try {
-    const response = await fetch(`/api/tmdb/search?query=${encodeURIComponent(cleanedTitle)}`);
-    if (!response.ok) {
-      console.warn(`[TMDB] API error for "${cleanedTitle}": ${response.status}`);
-      return { data: title, success: false };
+    // Initial search
+    let data = await queryTMDB(cleanedTitle);
+
+    // No results — progressively strip colon segments to find anything
+    if (!data?.results?.length) {
+      const fallback = await searchWithColonFallback(cleanedTitle, () => true);
+      if (!fallback) {
+        console.warn(`[TMDB] No results for "${cleanedTitle}"`);
+        return { data: title, success: false };
+      }
+      // Wrap single result so downstream logic works uniformly
+      data = { page: 1, results: [fallback], total_pages: 1, total_results: 1 };
     }
 
-    const data: TMDBSearchResponse = await response.json();
-    if (!data.results?.length) {
-      console.warn(`[TMDB] No results for "${cleanedTitle}"`);
-      return { data: title, success: false };
+    // Pick best match: prefer TV for knownTV titles
+    let match = data.results[0];
+    if (title.knownTV) {
+      const tvMatch =
+        data.results.find((r) => r.media_type === "tv") ??
+        (cleanedTitle.includes(":")
+          ? await searchWithColonFallback(cleanedTitle, (r) => r.media_type === "tv")
+          : null);
+      if (tvMatch) match = tvMatch;
     }
-
-    const match = data.results[0];
-    const isMovie = match.media_type === "movie";
 
     const enriched: EnrichedTitlePoint = {
       ...title,
@@ -57,9 +91,7 @@ async function fetchTMDB(title: TitlePoint, cache: Map<string, EnrichedTitlePoin
       mediaType: match.media_type,
       posterUrl: getPosterUrl(match.poster_path),
       backdropUrl: getBackdropUrl(match.backdrop_path),
-      overview: match.overview,
       rating: match.vote_average,
-      releaseYear: extractYear(isMovie ? match.release_date : match.first_air_date),
       genres: getGenreNames(match.genre_ids, match.media_type),
     };
 
@@ -72,8 +104,8 @@ async function fetchTMDB(title: TitlePoint, cache: Map<string, EnrichedTitlePoin
 }
 
 export function useTMDBEnrichment() {
+  const cacheRef = useRef(new Map<string, EnrichedTitlePoint>());
   const [state, setState] = useState<EnrichmentState>({
-    enrichedTitles: new Map(),
     isEnriching: false,
     progress: 0,
     total: 0,
@@ -89,7 +121,7 @@ export function useTMDBEnrichment() {
       failedCount: 0,
     }));
 
-    const cache = new Map(state.enrichedTitles);
+    const cache = cacheRef.current;
     const results: EnrichedTitlePoint[] = [];
     let failed = 0;
 
@@ -99,31 +131,23 @@ export function useTMDBEnrichment() {
       const batchResults = await Promise.all(batch.map((t) => fetchTMDB(t, cache)));
       batchResults.forEach((r) => {
         results.push(r.data);
-        if (!r.success) {
-          failed++;
-          console.log(`[TMDB] Counted as failed: "${r.data.title}"`);
-        }
+        if (!r.success) failed++;
       });
       setState((s) => ({ ...s, progress: Math.min(i + BATCH_SIZE, titles.length) }));
     }
 
     setState((s) => ({
       ...s,
-      enrichedTitles: cache,
       isEnriching: false,
       failedCount: failed,
     }));
 
-    if (failed > 0) {
-      console.log(`[TMDB] Enrichment complete: ${results.length - failed} succeeded, ${failed} failed`);
-    }
-
     return results;
-  }, [state.enrichedTitles]);
+  }, []);
 
   const clearCache = useCallback(() => {
+    cacheRef.current = new Map();
     setState({
-      enrichedTitles: new Map(),
       isEnriching: false,
       progress: 0,
       total: 0,

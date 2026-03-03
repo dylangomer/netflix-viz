@@ -68,7 +68,7 @@ export default function TopShowsChart({ data, genreColorMap, pageSize = SHOWS_PE
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               dataKey="title"
-              tick={{ fontSize: 11, angle: -45, textAnchor: "end" }}
+              tick={{ fontSize: 11, angle: -45, textAnchor: "end" } as Record<string, unknown>}
               interval={0}
               height={80}
               tickFormatter={(t: string) => (t.length > 20 ? t.slice(0, 19) + "…" : t)}

@@ -11,6 +11,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Query parameter required" }, { status: 400 });
   }
 
+  if (query.length > 200) {
+    return NextResponse.json({ error: "Query too long (max 200 characters)" }, { status: 400 });
+  }
+
   const apiKey = process.env.TMDB_API_KEY;
 
   if (!apiKey) {
@@ -32,7 +36,11 @@ export async function GET(request: NextRequest) {
     const response = await fetch(url.toString());
 
     if (!response.ok) {
-      throw new Error(`TMDB API error: ${response.status}`);
+      const status = response.status === 429 ? 429 : 502;
+      return NextResponse.json(
+        { error: `TMDB API error: ${response.status}` },
+        { status },
+      );
     }
 
     const data: TMDBSearchResponse = await response.json();

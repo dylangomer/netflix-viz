@@ -2,11 +2,43 @@
 
 import { useState } from "react";
 import { RawRow } from "@/types/episode";
-import { identifyShow } from "@/lib/episode-parser";
-import Papa from "papaparse";
 
 interface FileUploadProps {
   onDataLoaded: (data: RawRow[]) => void;
+}
+
+// Netflix date format: M/D/YY (e.g. "3/4/19", "10/21/23")
+const DATE_RE = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
+
+/**
+ * Parses a Netflix ViewingActivity.csv by splitting each line at the
+ * LAST comma. This handles titles with commas correctly
+ * (e.g. "13 Reasons Why: Season 1: Tape 7, Side A,3/4/19").
+ */
+function parseNetflixCSV(text: string): RawRow[] {
+  const lines = text.split(/\r?\n/);
+  if (lines.length === 0) return [];
+
+  // Skip header row
+  const startIdx = lines[0].toLowerCase().includes("title") ? 1 : 0;
+
+  const rows: RawRow[] = [];
+  for (let i = startIdx; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const lastComma = line.lastIndexOf(",");
+    if (lastComma === -1) continue;
+
+    const date = line.slice(lastComma + 1).trim().replace(/^"|"$/g, "");
+    const title = line.slice(0, lastComma).trim().replace(/^"|"$/g, "");
+
+    if (!title || !DATE_RE.test(date)) continue;
+
+    rows.push({ Title: title, Date: date });
+  }
+
+  return rows;
 }
 
 export default function FileUpload({ onDataLoaded }: FileUploadProps) {
@@ -14,29 +46,25 @@ export default function FileUpload({ onDataLoaded }: FileUploadProps) {
 
   function handleFile(file: File) {
     setError(null);
-    Papa.parse<RawRow>(file, {
-      header: true,
-      skipEmptyLines: true,
-      worker: true,
-      complete: (result) => {
-        if (result.errors?.length) {
-          setError(result.errors[0].message);
-          return;
-        }
 
-        if (!result.data || result.data.length === 0) {
-          setError("CSV file is empty or contains no valid data");
-          return;
-        }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result;
+      if (typeof text !== "string") {
+        setError("Failed to read file");
+        return;
+      }
 
-        const normalized: RawRow[] = result.data.map(r => ({
-          Title: identifyShow(r.Title),
-          Date: r.Date,
-        }));
-        onDataLoaded(normalized);
-      },
-      error: (err) => setError(err.message),
-    });
+      const rows = parseNetflixCSV(text);
+      if (rows.length === 0) {
+        setError("CSV file is empty or contains no valid data");
+        return;
+      }
+
+      onDataLoaded(rows);
+    };
+    reader.onerror = () => setError("Failed to read file");
+    reader.readAsText(file);
   }
 
   return (

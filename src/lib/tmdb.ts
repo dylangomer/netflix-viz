@@ -22,11 +22,6 @@ export interface TMDBSearchResponse {
   total_results: number;
 }
 
-export interface TMDBGenre {
-  id: number;
-  name: string;
-}
-
 // Genre ID to name mappings from TMDB
 export const MOVIE_GENRES: Record<number, string> = {
   28: "Action",
@@ -99,7 +94,3 @@ export function getGenreNames(genreIds: number[], mediaType: "movie" | "tv"): st
   return rawGenres;
 }
 
-export function extractYear(dateString: string | undefined): string {
-  if (!dateString) return "Unknown";
-  return dateString.split("-")[0];
-}

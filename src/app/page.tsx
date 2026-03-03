@@ -1,22 +1,87 @@
-// Frontend app - no server code here
+// Client-side page component
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { RawRow, DayPoint, TitlePoint, EnrichedTitlePoint } from "@/types/episode";
 import { COLORS, TOP_GENRES_LIMIT, MIN_EPISODES_FOR_TV } from "@/lib/constants";
-import { cleanTitle } from "@/lib/episode-parser";
 import FileUpload from "@/components/FileUpload";
 import WatchesOverTimeChart from "@/components/WatchesOverTimeChart";
 import TopShowsChart from "@/components/TopShowsChart";
 import GenreChart from "@/components/GenreChart";
 import { useTMDBEnrichment } from "@/hooks/useTMDBEnrichment";
+import { computeWrappedInsights } from "@/lib/wrapped-insights";
+import { computeViewerAvatar } from "@/lib/viewer-avatar";
+import WrappedPlayer from "@/components/wrapped/WrappedPlayer";
+import { SLIDE_REGISTRY } from "@/components/wrapped/slide-registry";
+import { cleanTitle, hasEpisodeMarkers } from "@/lib/episode-parser";
+
+function deduplicateTitles(titles: TitlePoint[]): TitlePoint[] {
+  // Pass 1: group by cleanTitle (handles Season/Episode keywords)
+  const map = new Map<string, { watched: number; knownTV: boolean }>();
+  titles.forEach(t => {
+    if (!t.title) return;
+    const cleaned = cleanTitle(t.title);
+    if (!cleaned) return;
+    const isTV = hasEpisodeMarkers(t.title);
+    const existing = map.get(cleaned);
+    if (existing) {
+      existing.watched += t.watched;
+      if (isTV) existing.knownTV = true;
+    } else {
+      map.set(cleaned, { watched: t.watched, knownTV: isTV });
+    }
+  });
+
+  // Pass 2: merge entries sharing a "Base:" prefix (e.g. "Colony: Geronimo" + "Colony: Pilot")
+  // Netflix often formats episodes as "Show: EpisodeName" without Season/Episode markers.
+  // If 2+ distinct entries share the same prefix before the first colon, they're likely episodes.
+  const colonGroups = new Map<string, string[]>();
+  for (const key of map.keys()) {
+    const colonIdx = key.indexOf(":");
+    if (colonIdx <= 0) continue;
+    const base = key.slice(0, colonIdx).trim();
+    const group = colonGroups.get(base) ?? [];
+    group.push(key);
+    colonGroups.set(base, group);
+  }
+
+  for (const [base, members] of colonGroups) {
+    if (members.length < 2) continue;
+    // Skip if the base already exists as a standalone entry (e.g. "Narcos" + "Narcos: Mexico")
+    // to avoid merging genuinely different shows
+    if (map.has(base) && !members.includes(base)) continue;
+
+    let totalWatched = 0;
+    members.forEach(key => {
+      totalWatched += map.get(key)!.watched;
+      map.delete(key);
+    });
+
+    const existing = map.get(base);
+    if (existing) {
+      existing.watched += totalWatched;
+      existing.knownTV = true;
+    } else {
+      map.set(base, { watched: totalWatched, knownTV: true });
+    }
+  }
+
+  return Array.from(map.entries()).map(([title, { watched, knownTV }]) => ({
+    title,
+    watched,
+    knownTV,
+  }));
+}
+
+const DEFAULT_FALLBACK_DATE = "1/1/75";
 
 export default function Home() {
   const [rows, setRows] = useState<RawRow[] | null>(null);
   const [isDark, setIsDark] = useState(false);
+  const [viewMode, setViewMode] = useState<"wrapped" | "dashboard">("wrapped");
   const [enrichedMovies, setEnrichedMovies] = useState<EnrichedTitlePoint[]>([]);
   const [enrichedTVShows, setEnrichedTVShows] = useState<EnrichedTitlePoint[]>([]);
-  const { enrichTitles, isEnriching, progress, total, failedCount } = useTMDBEnrichment();
+  const { enrichTitles, clearCache, isEnriching, progress, total, failedCount } = useTMDBEnrichment();
 
   // Load saved theme preference on mount
   useEffect(() => {
@@ -44,20 +109,22 @@ export default function Home() {
   }
 
   const { byDay, byTitle } = useMemo(() => {
-    const DEFAULT_FALLBACK_DATE = "1/1/75";
     const dayMap = new Map<string, number>();
     const titleMap = new Map<string, number>();
 
     rows?.forEach((r) => {
-      const title = (r["Title"] ?? "").toString();
+      const title = (r["Title"] ?? "").toString().trim();
       const date = (r["Date"] ?? DEFAULT_FALLBACK_DATE).toString();
       dayMap.set(date, (dayMap.get(date) ?? 0) + 1);
-      titleMap.set(title, (titleMap.get(title) ?? 0) + 1);
+      // Netflix redacts some show names, leaving orphaned ": Episode X" entries.
+      // Count them in daily totals but skip for enrichment (no show to search).
+      const hasShowName = title && /[a-zA-Z0-9]/.test(title[0]);
+      if (hasShowName) titleMap.set(title, (titleMap.get(title) ?? 0) + 1);
     });
 
     const byDay: DayPoint[] = Array.from(dayMap.entries())
       .map(([day, watched]) => ({ day, watched }))
-      .sort((a, b) => (a.day < b.day ? -1 : 1));
+      .sort((a, b) => new Date(a.day).getTime() - new Date(b.day).getTime());
 
     const byTitle: TitlePoint[] = Array.from(titleMap.entries())
       .map(([title, watched]) => ({ title, watched }))
@@ -66,36 +133,38 @@ export default function Home() {
     return { byDay, byTitle };
   }, [rows]);
 
-  // Deduplicate and prepare titles for enrichment
-  const deduplicateTitles = useCallback((titles: TitlePoint[]): TitlePoint[] => {
-    const titleMap = new Map<string, number>();
-    titles.forEach(t => {
-      const cleaned = cleanTitle(t.title);
-      if (!cleaned) return; // Skip empty titles
-      titleMap.set(cleaned, (titleMap.get(cleaned) ?? 0) + t.watched);
-    });
-    return Array.from(titleMap.entries()).map(([title, watched]) => ({ title, watched }));
-  }, []);
+  // Reset enriched data when rows change (new upload or clear)
+  const enrichGeneration = useRef(0);
+  useEffect(() => {
+    enrichGeneration.current++;
+    setEnrichedMovies([]);
+    setEnrichedTVShows([]);
+    clearCache();
+  }, [rows, clearCache]);
 
   // Auto-enrich when data is loaded
   useEffect(() => {
     if (byTitle.length === 0 || isEnriching || enrichedMovies.length > 0 || enrichedTVShows.length > 0) return;
 
+    const gen = enrichGeneration.current;
     const runEnrichment = async () => {
       const deduplicated = deduplicateTitles(byTitle);
       const result = await enrichTitles(deduplicated);
+      if (gen !== enrichGeneration.current) return; // stale — user uploaded new data
       setEnrichedMovies(result.filter(t => t.mediaType === "movie"));
       setEnrichedTVShows(result.filter(t => t.mediaType === "tv" && t.watched >= MIN_EPISODES_FOR_TV));
     };
 
     runEnrichment();
-  }, [byTitle, isEnriching, enrichedMovies.length, enrichedTVShows.length, deduplicateTitles, enrichTitles]);
+  }, [byTitle, isEnriching, enrichedMovies.length, enrichedTVShows.length, enrichTitles]);
 
   const isDataReady = enrichedMovies.length > 0 || enrichedTVShows.length > 0;
 
+  const allEnriched = useMemo(() => [...enrichedMovies, ...enrichedTVShows], [enrichedMovies, enrichedTVShows]);
+
   // Build stable genre-to-color mapping from all enriched data
   const genreColorMap = useMemo(() => {
-    const allData = [...enrichedMovies, ...enrichedTVShows];
+    const allData = allEnriched;
     const genreMap = new Map<string, number>();
     allData.forEach((title) => {
       title.genres?.forEach((genre) => {
@@ -108,7 +177,17 @@ export default function Home() {
     const colorMap = new Map<string, string>();
     sorted.forEach(([genre], i) => colorMap.set(genre, COLORS.palette[i % COLORS.palette.length]));
     return colorMap;
-  }, [enrichedMovies, enrichedTVShows]);
+  }, [allEnriched]);
+
+  const insights = useMemo(() => {
+    if (!rows || !isDataReady) return null;
+    return computeWrappedInsights(rows, enrichedMovies, enrichedTVShows);
+  }, [rows, enrichedMovies, enrichedTVShows, isDataReady]);
+
+  const avatar = useMemo(() => {
+    if (!insights) return null;
+    return computeViewerAvatar(insights);
+  }, [insights]);
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
@@ -120,12 +199,22 @@ export default function Home() {
               Upload your <code>ViewingActivity.csv</code>. We process it locally in your browser.
             </p>
           </div>
-          <button
-            onClick={toggleDark}
-            className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
-          >
-            {isDark ? "Light" : "Dark"}
-          </button>
+          <div className="flex gap-2">
+            {isDataReady && (
+              <button
+                onClick={() => setViewMode((v) => (v === "wrapped" ? "dashboard" : "wrapped"))}
+                className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
+              >
+                {viewMode === "wrapped" ? "Dashboard" : "Wrapped"}
+              </button>
+            )}
+            <button
+              onClick={toggleDark}
+              className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
+            >
+              {isDark ? "Light" : "Dark"}
+            </button>
+          </div>
         </header>
 
         <FileUpload onDataLoaded={setRows} />
@@ -136,11 +225,7 @@ export default function Home() {
               <p className="opacity-80">Parsed {rows.length.toLocaleString()} rows.</p>
               <button
                 className="rounded-lg border px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-900"
-                onClick={() => {
-                  setRows(null);
-                  setEnrichedMovies([]);
-                  setEnrichedTVShows([]);
-                }}
+                onClick={() => setRows(null)}
               >
                 Clear data
               </button>
@@ -165,18 +250,25 @@ export default function Home() {
                 {failedCount > 0 && ` (${failedCount} titles not found)`}
               </p>
             )}
+            {!isEnriching && !isDataReady && byTitle.length > 0 && failedCount > 0 && (
+              <p className="text-xs text-red-600 dark:text-red-400">
+                Could not fetch metadata from TMDB ({failedCount} titles failed). Check your connection and try re-uploading.
+              </p>
+            )}
           </div>
         )}
 
-        {isDataReady && (
+        {isDataReady && viewMode === "wrapped" && insights && avatar && (
+          <WrappedPlayer insights={insights} avatar={avatar} slides={SLIDE_REGISTRY} />
+        )}
+
+        {isDataReady && viewMode === "dashboard" && (
           <>
             <section className="grid gap-6 md:grid-cols-2">
               <WatchesOverTimeChart data={byDay} />
               <TopShowsChart data={enrichedTVShows} genreColorMap={genreColorMap} />
             </section>
-            <section className="grid gap-6 md:grid-cols-2">
-              <GenreChart data={[...enrichedMovies, ...enrichedTVShows]} genreColorMap={genreColorMap} />
-            </section>
+            <GenreChart data={allEnriched} genreColorMap={genreColorMap} />
           </>
         )}
 
