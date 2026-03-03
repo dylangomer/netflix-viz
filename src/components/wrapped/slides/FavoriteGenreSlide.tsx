@@ -9,7 +9,7 @@ export default function FavoriteGenreSlide({ insights }: SlideProps) {
   if (topGenres.length === 0) return null;
 
   return (
-    <div className="flex h-full min-h-[80vh] flex-col items-center justify-center px-6 bg-gradient-to-br from-amber-500 to-rose-500 rounded-xl text-white">
+    <div className="flex h-full min-h-screen flex-col items-center justify-center px-6 bg-gradient-to-br from-amber-500 to-rose-500 rounded-xl text-white">
       <motion.div
         variants={staggerContainer}
         initial="hidden"

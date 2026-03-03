@@ -259,7 +259,7 @@ export default function Home() {
         )}
 
         {isDataReady && viewMode === "wrapped" && insights && avatar && (
-          <WrappedPlayer insights={insights} avatar={avatar} slides={SLIDE_REGISTRY} />
+          <WrappedPlayer insights={insights} avatar={avatar} slides={SLIDE_REGISTRY} onClose={() => setViewMode("dashboard")} />
         )}
 
         {isDataReady && viewMode === "dashboard" && (

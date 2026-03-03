@@ -6,7 +6,7 @@ import { staggerContainer, staggerItem, numberReveal } from "../animations";
 
 export default function TotalWatchesSlide({ insights }: SlideProps) {
   return (
-    <div className="flex h-full min-h-[80vh] flex-col items-center justify-center px-6 bg-gradient-to-br from-red-600 to-orange-500 rounded-xl text-white">
+    <div className="flex h-full min-h-screen flex-col items-center justify-center px-6 bg-gradient-to-br from-red-600 to-orange-500 rounded-xl text-white">
       <motion.div
         variants={staggerContainer}
         initial="hidden"

@@ -13,7 +13,7 @@ type Props = {
 
 export default function TopTitleSlide({ label, gradient, title, showEpisodeCount }: Props) {
   return (
-    <div className={`relative flex h-full min-h-[80vh] flex-col items-center justify-center px-6 bg-gradient-to-br ${gradient} rounded-xl text-white overflow-hidden`}>
+    <div className={`relative flex h-full min-h-screen flex-col items-center justify-center px-6 bg-gradient-to-br ${gradient} rounded-xl text-white overflow-hidden`}>
       {title.backdropUrl && (
         <div
           className="absolute inset-0 bg-cover bg-center opacity-20"

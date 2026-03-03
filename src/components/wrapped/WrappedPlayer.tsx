@@ -10,9 +10,10 @@ type WrappedPlayerProps = {
   insights: WrappedInsights;
   avatar: ViewerAvatar;
   slides: SlideConfig[];
+  onClose?: () => void;
 };
 
-export default function WrappedPlayer({ insights, avatar, slides }: WrappedPlayerProps) {
+export default function WrappedPlayer({ insights, avatar, slides, onClose }: WrappedPlayerProps) {
   const visibleSlides = slides.filter((s) => s.shouldShow(insights));
   const [[rawIndex, direction], setSlide] = useState([0, 0]);
 
@@ -47,8 +48,24 @@ export default function WrappedPlayer({ insights, avatar, slides }: WrappedPlaye
   const SlideComponent = current.component;
 
   return (
-    <div className="relative min-h-[80vh] flex flex-col select-none">
+    <div className="fixed inset-0 z-50 flex flex-col select-none bg-black">
       <ProgressBar total={visibleSlides.length} current={slideIndex} />
+
+      {/* Close button */}
+      {onClose && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="absolute top-3 right-4 z-20 rounded-full bg-black/30 p-2 text-white hover:bg-black/50 transition-colors"
+          aria-label="Exit wrapped"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      )}
 
       {/* Back button */}
       {slideIndex > 0 && (
@@ -57,7 +74,7 @@ export default function WrappedPlayer({ insights, avatar, slides }: WrappedPlaye
             e.stopPropagation();
             goPrev();
           }}
-          className="absolute top-10 left-4 z-20 rounded-full bg-black/30 p-2 text-white hover:bg-black/50 transition-colors"
+          className="absolute top-3 left-4 z-20 rounded-full bg-black/30 p-2 text-white hover:bg-black/50 transition-colors"
           aria-label="Previous slide"
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

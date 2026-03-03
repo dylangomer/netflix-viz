@@ -9,7 +9,7 @@ export default function ViewerAvatarSlide({ insights, avatar }: SlideProps) {
   const shareUrl = buildTwitterShareUrl(avatar, insights);
 
   return (
-    <div className="flex h-full min-h-[80vh] flex-col items-center justify-center px-6 bg-gradient-to-br from-fuchsia-600 to-violet-600 rounded-xl text-white">
+    <div className="flex h-full min-h-screen flex-col items-center justify-center px-6 bg-gradient-to-br from-fuchsia-600 to-violet-600 rounded-xl text-white">
       <motion.div
         variants={staggerContainer}
         initial="hidden"
